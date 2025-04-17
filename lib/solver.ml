@@ -1248,6 +1248,7 @@ module Logger = struct
       { SMT.send = (fun _ -> ()); SMT.receive = (fun _ -> ()); SMT.stop = (fun _ -> ()) }
 end
 
+
 let solver_path = ref (None : string option)
 
 let solver_type = ref (None : SMT.solver_extensions option)
@@ -1449,6 +1450,18 @@ end
 let try_hard = ref false
 
 let provableWithUnknown ~loc ~solver ~assumptions ~simp_ctxt lc =
+  let check s =
+    let curr_frame = !(s.cur_frame) in
+    let cmds = curr_frame.commands in
+    let ctx_hash () : string =
+      List.map Sexplib.Sexp.to_string_hum cmds
+      |> String.concat "\n"
+      |> Sha256.string
+      |> Sha256.to_hex in
+    Smt_profiling.with_profiling
+      ~hash:ctx_hash
+      SMT.check s.smt_solver in
+
   let _ = loc in
   let set_model smt_solver qs =
     let defs = SMT.get_model smt_solver in
@@ -1462,10 +1475,10 @@ let provableWithUnknown ~loc ~solver ~assumptions ~simp_ctxt lc =
   | `No_shortcut lc ->
     let { expr; qs; extra } = translate_goal solver assumptions lc in
     let nexpr = SMT.bool_not expr in
-    let inc = solver.smt_solver in
+
     debug_ack_command solver (SMT.push 1);
     debug_ack_command solver (SMT.assume (SMT.bool_ands (nexpr :: extra)));
-    (match SMT.check inc with
+    (match check solver with
      | SMT.Unsat ->
        debug_ack_command solver (SMT.pop 1);
        model_state := No_model;
@@ -1480,24 +1493,24 @@ let provableWithUnknown ~loc ~solver ~assumptions ~simp_ctxt lc =
          solver
          (SMT.assume (SMT.bool_ands ((nexpr :: foralls) @ functions)));
        Pp.(debug 3 (lazy !^"***** try-hard *****"));
-       (match SMT.check inc with
+       (match check solver with
         | SMT.Unsat ->
           debug_ack_command solver (SMT.pop 1);
           model_state := No_model;
           Pp.(debug 3 (lazy !^"***** try-hard: provable *****"));
           `True
         | SMT.Sat ->
-          set_model inc qs;
+          set_model solver.smt_solver qs;
           debug_ack_command solver (SMT.pop 1);
           Pp.(debug 3 (lazy !^"***** try-hard: unprovable *****"));
           `Unknown (*TODO CHT*)
         | SMT.Unknown ->
-          set_model inc qs;
+          set_model solver.smt_solver qs;
           debug_ack_command solver (SMT.pop 1);
           Pp.(debug 3 (lazy !^"***** try-hard: unknown *****"));
           `False)
      | SMT.Sat ->
-       set_model inc qs;
+       set_model solver.smt_solver qs;
        debug_ack_command solver (SMT.pop 1);
        `False
      | SMT.Unknown ->
