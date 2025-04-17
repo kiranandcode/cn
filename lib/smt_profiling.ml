@@ -32,6 +32,10 @@ let init_profiler (filename: string) =
       let dirname = Filename.dirname dirname in
       make_unique_name dir dirname basename ext in
   Option.iter Out_channel.close !out;
+  let project_name =
+    match Sys.getenv_opt "CN_PROFILING_PROJECT_NAME" with
+    | None -> ""
+    | Some pre -> pre ^ "::" in
   (match Sys.getenv_opt "CN_PROFILING_WITH_HASH" |> Option.map String.lowercase_ascii with
   | Some "true" -> include_hash := true
   | _ -> include_hash := false);
@@ -40,9 +44,11 @@ let init_profiler (filename: string) =
     out := None
   | Some dir ->
     if not (Sys.file_exists dir) then Sys.mkdir dir 0o700 else ();
-    let basename = Filename.remove_extension (Filename.basename filename) in
+    let basename = project_name ^ Filename.remove_extension (Filename.basename filename) in
+
     let dirname = Filename.dirname filename in
     let filename = make_unique_name dir dirname basename ".c.csv" in
+    Format.printf "writing to %s\n%!" filename;
     out := Some (open_out filename)
 
 let close_profiler () =

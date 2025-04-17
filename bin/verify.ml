@@ -69,6 +69,7 @@ let verify
   Prooflog.set_enabled coq_proof_log;
   let filename = Common.there_can_only_be_one filename in
   Smt_profiling.init_profiler filename;
+
   Fun.protect ~finally:Smt_profiling.close_profiler @@ fun () -> 
   Common.with_well_formedness_check (* CLI arguments *)
     ~filename
