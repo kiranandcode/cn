@@ -16,21 +16,21 @@ let with_profiling ?(hash=fun () -> "") f v =
     res
 
 let init_profiler (filename: string) =
-  let rec make_unique_name_numeric (dir: string) (basename: string) (n: int) (ext: string) =
-    let proposed_name = (basename ^ "_" ^ string_of_int n) ^ ext in
-    if not (Sys.file_exists (Filename.concat dir proposed_name))
+  let rec make_unique_name_numeric (proj_name: string) (dir: string) (basename: string) (n: int) (ext: string) =
+    let proposed_name = Filename.concat dir (proj_name ^ basename ^ "_" ^ string_of_int n ^ ext) in
+    if not (Sys.file_exists proposed_name)
     then proposed_name
-    else make_unique_name_numeric dir basename (n + 1) ext in
-  let rec make_unique_name (dir: string) (dirname: string) (basename: string) (ext: string) =
-    let proposed_name = Filename.concat dir basename ^ ext in
+    else make_unique_name_numeric proj_name dir basename (n + 1) ext in
+  let rec make_unique_name (proj_name: string) (dir: string) (dirname: string) (basename: string) (ext: string) =
+    let proposed_name = Filename.concat dir (proj_name ^ basename ^ ext) in
     if not (Sys.file_exists proposed_name)
     then proposed_name
     else if String.equal dirname Filename.current_dir_name
-    then make_unique_name_numeric dir basename 1 ext
+    then make_unique_name_numeric proj_name dir basename 1 ext
     else
       let basename = Filename.basename dirname ^ "_" ^ basename in
       let dirname = Filename.dirname dirname in
-      make_unique_name dir dirname basename ext in
+      make_unique_name proj_name dir dirname basename ext in
   Option.iter Out_channel.close !out;
   let project_name =
     match Sys.getenv_opt "CN_PROFILING_PROJECT_NAME" with
@@ -44,11 +44,9 @@ let init_profiler (filename: string) =
     out := None
   | Some dir ->
     if not (Sys.file_exists dir) then Sys.mkdir dir 0o700 else ();
-    let basename = project_name ^ Filename.remove_extension (Filename.basename filename) in
-
+    let basename = Filename.remove_extension (Filename.basename filename) in
     let dirname = Filename.dirname filename in
-    let filename = make_unique_name dir dirname basename ".c.csv" in
-    Format.printf "writing to %s\n%!" filename;
+    let filename = make_unique_name project_name dir dirname basename ".c.csv" in
     out := Some (open_out filename)
 
 let close_profiler () =

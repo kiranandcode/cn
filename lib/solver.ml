@@ -1380,7 +1380,7 @@ let model_evaluator, reset_model_evaluator_state =
           push evaluator;
           List.iter (debug_ack_command evaluator) defs);
         let inp = translate_term evaluator e in
-        match SMT.check smt_solver with
+        match Smt_profiling.with_profiling ~hash:(fun () -> "model") SMT.check smt_solver with
         | SMT.Sat ->
           let res = SMT.get_expr smt_solver inp in
           let ctys = get_ctype_table evaluator in
